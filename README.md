@@ -35,6 +35,8 @@ docker compose up -d
 - `GET /daemon/logs?lines=120`
 - `POST /daemon/reload-config`（需要 `x-admin-token`）
 - `POST /daemon/restart-hint`（需要 `x-admin-token`）
+- `POST /daemon/restart-real`（需要 `x-admin-token`，通过宿主机 bridge 真重启 CoPaw）
+- `POST /mihomo/restart`（需要 `x-admin-token`，通过宿主机 bridge 重启 mihomo）
 - `GET /skills/list`
 - `GET /models/list`
 

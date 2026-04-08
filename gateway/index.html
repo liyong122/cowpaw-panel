@@ -29,6 +29,16 @@
     button:hover { background: #2a3b7e; }
     pre { white-space: pre-wrap; background: #0a122b; border: 1px solid #23305f; border-radius: 10px; padding: 12px; max-height: 260px; overflow: auto; }
     .small { font-size: 13px; opacity: .85; }
+    .kv { margin-top: 8px; font-size: 13px; line-height: 1.6; opacity: .92; }
+    .kv .label { opacity: .75; margin-right: 6px; }
+    .docker-list { margin-top: 10px; font-size: 13px; }
+    .docker-item { border: 1px solid #27325f; border-radius: 10px; padding: 10px; margin-bottom: 8px; background: #0f1733; }
+    .docker-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+    .badge.up { background: rgba(87, 211, 140, .18); color: #57d38c; }
+    .badge.down { background: rgba(255, 95, 109, .18); color: #ff5f6d; }
+    .ports { opacity: .9; }
+    .quick-links a { margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -62,16 +72,30 @@
       <div class="card">
         <h2>🖥️ 主系统房</h2>
         <div class="status"><span class="dot" id="dot-host"></span><span id="txt-host">检测中...</span></div>
-        <ul>
-          <li><a href="http://192.168.1.5:18102/system" target="_blank">系统状态</a></li>
-        </ul>
+        <div class="kv">
+          <div><span class="label">系统版本:</span><span id="host-os">--</span></div>
+          <div><span class="label">Debian:</span><span id="host-debian">--</span></div>
+          <div><span class="label">CPU信息:</span><span id="host-cpu-text">--</span></div>
+          <div><span class="label">CPU占用:</span><span id="host-cpu">--</span></div>
+          <div><span class="label">内存:</span><span id="host-mem">--</span></div>
+        </div>
       </div>
 
       <div class="card">
         <h2>🐳 容器房</h2>
         <div class="status"><span class="dot" id="dot-docker"></span><span id="txt-docker">检测中...</span></div>
+        <div class="docker-list" id="docker-list">加载中...</div>
+      </div>
+
+      <div class="card">
+        <h2>🛰️ 代理路线</h2>
+        <div class="status"><span class="dot" id="dot-mihomo"></span><span id="txt-mihomo">检测中...</span></div>
+        <div class="kv">
+          <div><span class="label">当前出口IP:</span><span id="mihomo-ip">--</span></div>
+          <div><span class="label">IP归属地:</span><span id="mihomo-location">--</span></div>
+        </div>
         <ul>
-          <li><a href="http://192.168.1.5:18103/containers" target="_blank">容器列表</a></li>
+          <li><a href="http://192.168.1.5:9097/ui/#/proxies" target="_blank">打开 Mihomo 面板（Proxies）</a></li>
         </ul>
       </div>
     </div>
@@ -86,6 +110,7 @@
           <input id="rememberToken" type="checkbox" /> 记住 token（本浏览器）
         </label>
         <button onclick="restartCopawReal()">重启 CoPaw（真重启，会断连）</button>
+        <button onclick="restartMihomo()">重启 mihomo（短暂中断代理）</button>
         <button onclick="readDaemonLogs()">读取 CoPaw 日志(80行)</button>
       </div>
 
@@ -107,12 +132,6 @@
 
   <script>
     const BASE = 'http://192.168.1.5';
-    const checks = [
-      { key: 'copaw', url: `${BASE}:18104/health` },
-      { key: 'memory', url: `${BASE}:18101/health` },
-      { key: 'host', url: `${BASE}:18102/health` },
-      { key: 'docker', url: `${BASE}:18103/health` },
-    ];
 
     function setResult(data) {
       const el = document.getElementById('result');
@@ -155,6 +174,21 @@
       }
     }
 
+    async function restartMihomo() {
+      if (!confirm('确认重启 mihomo？代理会短暂中断。')) return;
+      try {
+        const resp = await fetch(`${BASE}:18104/mihomo/restart`, {
+          method: 'POST',
+          headers: tokenHeaders(false)
+        });
+        setResult(await resp.json());
+        updateStatus();
+        setTimeout(updateStatus, 3000);
+      } catch (e) {
+        setResult('重启 mihomo 失败: ' + e.message);
+      }
+    }
+
     async function appendDaily() {
       const date = document.getElementById('dailyDate').value.trim();
       const text = document.getElementById('dailyText').value.trim();
@@ -174,22 +208,114 @@
       }
     }
 
-    async function ping(item) {
-      const dot = document.getElementById('dot-' + item.key);
-      const txt = document.getElementById('txt-' + item.key);
-      try {
-        const resp = await fetch(item.url, { method: 'GET' });
-        if (!resp.ok) throw new Error('status ' + resp.status);
-        dot.className = 'dot ok';
-        txt.textContent = '在线';
-      } catch (e) {
-        dot.className = 'dot err';
-        txt.textContent = '离线';
+    function buildQuickLinks(ports = []) {
+      const links = [];
+      for (const p of ports) {
+        if (!p.host) continue;
+        const hostPort = String(p.host);
+        const ip = BASE.replace('http://', '').replace('https://', '');
+        const url = `http://${ip}:${hostPort}`;
+        links.push(`<a href="${url}" target="_blank">:${hostPort}</a>`);
       }
+      return links.length ? links.join(' ') : '无';
     }
 
-    async function loop() {
-      for (const c of checks) await ping(c);
+    function renderDockerList(items = []) {
+      const el = document.getElementById('docker-list');
+      if (!el) return;
+      if (!items.length) {
+        el.textContent = '暂无容器';
+        return;
+      }
+
+      el.innerHTML = items.map(ct => {
+        const up = (ct.status || '').toLowerCase() === 'running';
+        const badgeCls = up ? 'up' : 'down';
+        const badgeText = up ? '运行中' : (ct.status || '未知');
+        const portsText = (ct.ports || []).map(p => p.host ? `${p.host}->${p.container}` : `${p.container}`).join(', ') || '无';
+        const links = buildQuickLinks(ct.ports || []);
+        return `
+          <div class="docker-item">
+            <div class="docker-head">
+              <strong>${ct.name}</strong>
+              <span class="badge ${badgeCls}">${badgeText}</span>
+            </div>
+            <div class="small">镜像: ${ct.image || '--'}</div>
+            <div class="ports">端口: ${portsText}</div>
+            <div class="quick-links small">快捷访问: ${links}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMihomo(mh = {}) {
+      const dot = document.getElementById('dot-mihomo');
+      const txt = document.getElementById('txt-mihomo');
+      const ipEl = document.getElementById('mihomo-ip');
+      const locEl = document.getElementById('mihomo-location');
+
+      if (!dot || !txt) return;
+
+      if (!mh.ok) {
+        dot.className = 'dot err';
+        txt.textContent = '离线';
+        if (ipEl) ipEl.textContent = '--';
+        if (locEl) locEl.textContent = '--';
+        return;
+      }
+
+      dot.className = 'dot ok';
+      txt.textContent = '在线';
+      if (ipEl) ipEl.textContent = mh.ip || '--';
+      if (locEl) locEl.textContent = mh.location || '--';
+    }
+
+    async function updateStatus() {
+      try {
+        const [systemStatusResp, containersResp] = await Promise.all([
+          fetch(`${BASE}:18104/lobster/system-status`),
+          fetch(`${BASE}:18103/containers`)
+        ]);
+
+        const data = await systemStatusResp.json();
+        const containersData = await containersResp.json();
+
+        for (const [key, status] of Object.entries(data.details)) {
+          const dot = document.getElementById('dot-' + key);
+          const txt = document.getElementById('txt-' + key);
+          if (!dot || !txt) continue;
+
+          if (status === 'up') {
+            dot.className = 'dot ok';
+            txt.textContent = '在线';
+          } else {
+            dot.className = 'dot err';
+            txt.textContent = '离线';
+          }
+        }
+
+        const host = data.host || {};
+        const osEl = document.getElementById('host-os');
+        const debianEl = document.getElementById('host-debian');
+        const cpuTextEl = document.getElementById('host-cpu-text');
+        const cpuEl = document.getElementById('host-cpu');
+        const memEl = document.getElementById('host-mem');
+
+        if (osEl) osEl.textContent = host.os || '--';
+        if (debianEl) debianEl.textContent = host.debian || '--';
+        if (cpuTextEl) cpuTextEl.textContent = host.cpu_text || '--';
+        if (cpuEl) cpuEl.textContent = (host.cpu_percent !== undefined && host.cpu_percent !== null ? `${host.cpu_percent}%` : '--');
+        if (memEl && host.memory) {
+          memEl.textContent = `${host.memory.percent}% (${host.memory.used_mb}/${host.memory.total_mb} MB)`;
+        } else if (memEl) {
+          memEl.textContent = '--';
+        }
+
+        renderDockerList(containersData.items || []);
+        renderMihomo(data.mihomo || {});
+      } catch (e) {
+        console.error('获取状态失败', e);
+      }
     }
 
     (function initRememberToken() {
@@ -214,8 +340,8 @@
       });
     })();
 
-    loop();
-    setInterval(loop, 8000);
+    updateStatus();
+    setInterval(updateStatus, 5000);
   </script>
 </body>
 </html>
