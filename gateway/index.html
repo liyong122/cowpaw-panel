@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CoPaw 龙虾基地 · 房间地图</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background: #0b1020; color: #e8ecff; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 24px; }
+    h1 { margin-top: 0; font-size: 28px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 16px; }
+    .card { background: #151c34; border: 1px solid #27325f; border-radius: 12px; padding: 16px; }
+    .card h2 { margin: 0 0 8px 0; font-size: 18px; }
+    a { color: #92b4ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .hint { opacity: .85; font-size: 14px; margin-top: 16px; }
+    .ok { color: #57d38c; }
+    ul { margin: 8px 0; padding-left: 18px; }
+    .status { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; }
+    .dot.ok { background:#57d38c; }
+    .dot.err { background:#ff5f6d; }
+    .panel { margin-top: 20px; background: #151c34; border: 1px solid #27325f; border-radius: 12px; padding: 16px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+    input, textarea, button { border-radius: 8px; border: 1px solid #31407a; background: #0e1530; color: #e8ecff; padding: 10px; }
+    input, textarea { min-width: 260px; }
+    textarea { width: 100%; min-height: 80px; }
+    button { cursor: pointer; background: #1f2f66; }
+    button:hover { background: #2a3b7e; }
+    pre { white-space: pre-wrap; background: #0a122b; border: 1px solid #23305f; border-radius: 10px; padding: 12px; max-height: 260px; overflow: auto; }
+    .small { font-size: 13px; opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🦞 CoPaw 龙虾基地 · 第二轮</h1>
+    <p>主项目核心：<strong>CoPaw</strong>。已加入实时状态灯与本地控制面板。</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>🏠 CoPaw 主控房</h2>
+        <div class="status"><span class="dot" id="dot-copaw"></span><span id="txt-copaw">检测中...</span></div>
+        <ul>
+          <li><a href="http://192.168.1.5:18104/daemon/status" target="_blank">Daemon 状态</a></li>
+          <li><a href="http://192.168.1.5:18104/daemon/version" target="_blank">Daemon 版本</a></li>
+          <li><a href="http://192.168.1.5:18104/daemon/logs?lines=120" target="_blank">Daemon 日志</a></li>
+          <li><a href="http://192.168.1.5:18104/skills/list" target="_blank">Skills 列表</a></li>
+          <li><a href="http://192.168.1.5:18104/models/list" target="_blank">Models 列表</a></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🧠 记忆房（CoPaw 工作区）</h2>
+        <div class="status"><span class="dot" id="dot-memory"></span><span id="txt-memory">检测中...</span></div>
+        <ul>
+          <li><a href="http://192.168.1.5:18101/memory/overview" target="_blank">记忆总览</a></li>
+          <li><a href="http://192.168.1.5:18101/memory/long" target="_blank">长期记忆</a></li>
+          <li><a href="http://192.168.1.5:18101/memory/daily/2026-04-09" target="_blank">当日日志示例</a></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🖥️ 主系统房</h2>
+        <div class="status"><span class="dot" id="dot-host"></span><span id="txt-host">检测中...</span></div>
+        <ul>
+          <li><a href="http://192.168.1.5:18102/system" target="_blank">系统状态</a></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🐳 容器房</h2>
+        <div class="status"><span class="dot" id="dot-docker"></span><span id="txt-docker">检测中...</span></div>
+        <ul>
+          <li><a href="http://192.168.1.5:18103/containers" target="_blank">容器列表</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🔐 本地控制台（简化）</h2>
+      <p class="small">仅内网使用。输入 <code>x-admin-token</code> 后可执行安全操作。</p>
+
+      <div class="row">
+        <input id="token" type="password" placeholder="输入 token（例如 199200）" />
+        <label class="small" style="display:flex;align-items:center;gap:6px;">
+          <input id="rememberToken" type="checkbox" /> 记住 token（本浏览器）
+        </label>
+        <button onclick="restartCopawReal()">重启 CoPaw（真重启，会断连）</button>
+        <button onclick="readDaemonLogs()">读取 CoPaw 日志(80行)</button>
+      </div>
+
+      <div class="row">
+        <input id="dailyDate" type="text" value="2026-04-09" placeholder="日期 YYYY-MM-DD" />
+      </div>
+      <div class="row" style="display:block;">
+        <textarea id="dailyText" placeholder="追加到当日日志的内容..."></textarea>
+      </div>
+      <div class="row">
+        <button onclick="appendDaily()">追加到 Daily 记忆</button>
+      </div>
+
+      <pre id="result">等待操作...</pre>
+    </div>
+
+    <p class="hint">入口地址：<span class="ok">http://192.168.1.5:18080</span></p>
+  </div>
+
+  <script>
+    const BASE = 'http://192.168.1.5';
+    const checks = [
+      { key: 'copaw', url: `${BASE}:18104/health` },
+      { key: 'memory', url: `${BASE}:18101/health` },
+      { key: 'host', url: `${BASE}:18102/health` },
+      { key: 'docker', url: `${BASE}:18103/health` },
+    ];
+
+    function setResult(data) {
+      const el = document.getElementById('result');
+      el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    }
+
+    function tokenHeaders(json = false) {
+      const tokenInput = document.getElementById('token');
+      const remember = document.getElementById('rememberToken');
+      const token = tokenInput.value.trim();
+
+      if (remember.checked && token) {
+        localStorage.setItem('lobster_admin_token', token);
+      }
+
+      const h = { 'x-admin-token': token };
+      if (json) h['Content-Type'] = 'application/json';
+      return h;
+    }
+
+    async function restartCopawReal() {
+      if (!confirm('确认执行真重启？这会导致 CoPaw 短暂断连。')) return;
+      try {
+        const resp = await fetch(`${BASE}:18104/daemon/restart-real`, {
+          method: 'POST',
+          headers: tokenHeaders(false)
+        });
+        setResult(await resp.json());
+      } catch (e) {
+        setResult('restart-real 失败: ' + e.message);
+      }
+    }
+
+    async function readDaemonLogs() {
+      try {
+        const resp = await fetch(`${BASE}:18104/daemon/logs?lines=80`);
+        setResult(await resp.json());
+      } catch (e) {
+        setResult('读取日志失败: ' + e.message);
+      }
+    }
+
+    async function appendDaily() {
+      const date = document.getElementById('dailyDate').value.trim();
+      const text = document.getElementById('dailyText').value.trim();
+      if (!date || !text) {
+        setResult('请填写日期和内容');
+        return;
+      }
+      try {
+        const resp = await fetch(`${BASE}:18101/memory/daily/${date}/append`, {
+          method: 'POST',
+          headers: tokenHeaders(true),
+          body: JSON.stringify({ text })
+        });
+        setResult(await resp.json());
+      } catch (e) {
+        setResult('追加 daily 失败: ' + e.message);
+      }
+    }
+
+    async function ping(item) {
+      const dot = document.getElementById('dot-' + item.key);
+      const txt = document.getElementById('txt-' + item.key);
+      try {
+        const resp = await fetch(item.url, { method: 'GET' });
+        if (!resp.ok) throw new Error('status ' + resp.status);
+        dot.className = 'dot ok';
+        txt.textContent = '在线';
+      } catch (e) {
+        dot.className = 'dot err';
+        txt.textContent = '离线';
+      }
+    }
+
+    async function loop() {
+      for (const c of checks) await ping(c);
+    }
+
+    (function initRememberToken() {
+      const tokenInput = document.getElementById('token');
+      const remember = document.getElementById('rememberToken');
+      const saved = localStorage.getItem('lobster_admin_token') || '';
+      if (saved) {
+        tokenInput.value = saved;
+        remember.checked = true;
+      }
+
+      remember.addEventListener('change', () => {
+        if (!remember.checked) return;
+        const token = tokenInput.value.trim();
+        if (token) localStorage.setItem('lobster_admin_token', token);
+      });
+
+      tokenInput.addEventListener('input', () => {
+        if (!remember.checked) return;
+        const token = tokenInput.value.trim();
+        if (token) localStorage.setItem('lobster_admin_token', token);
+      });
+    })();
+
+    loop();
+    setInterval(loop, 8000);
+  </script>
+</body>
+</html>

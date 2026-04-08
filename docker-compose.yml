@@ -1,0 +1,82 @@
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: lobster_gateway
+    restart: unless-stopped
+    ports:
+      - "18080:80"
+    volumes:
+      - ./gateway/index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - room-copaw
+      - room-memory
+      - room-host
+      - room-docker
+    networks:
+      - lobster-net
+
+  room-copaw:
+    image: python:3.12-slim
+    container_name: lobster_room_copaw
+    restart: unless-stopped
+    environment:
+      - LOBSTER_ADMIN_TOKEN=199200
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "18104:8000"
+    volumes:
+      - ./room-copaw/app:/app
+      - /root/.copaw:/root/.copaw
+      - /root/.local/share/uv:/root/.local/share/uv:ro
+    networks:
+      - lobster-net
+
+  room-memory:
+    image: python:3.11-slim
+    container_name: lobster_room_memory
+    restart: unless-stopped
+    environment:
+      - LOBSTER_ADMIN_TOKEN=199200
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "18101:8000"
+    volumes:
+      - ./room-memory/app:/app
+      - /root/.copaw/workspaces/ZFzsnk:/copaw-workspace
+    networks:
+      - lobster-net
+
+  room-host:
+    image: python:3.11-slim
+    container_name: lobster_room_host
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "18102:8000"
+    volumes:
+      - ./room-host/app:/app
+    networks:
+      - lobster-net
+
+  room-docker:
+    image: python:3.11-slim
+    container_name: lobster_room_docker
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "18103:8000"
+    volumes:
+      - ./room-docker/app:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - lobster-net
+
+networks:
+  lobster-net:
+    name: lobster-net
